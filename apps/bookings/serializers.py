@@ -97,3 +97,35 @@ class BookingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("This space is already booked during the selected time period")
             
         return data
+
+class EventUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = [
+            'event_name', 
+            'start_datetime', 
+            'end_datetime', 
+            'organizer_name', 
+            'organizer_email', 
+            'event_type', 
+            'attendance'
+        ]
+        extra_kwargs = {
+            'event_name': {'required': False},
+            'start_datetime': {'required': False},
+            'end_datetime': {'required': False},
+            'organizer_name': {'required': False},
+            'organizer_email': {'required': False},
+            'event_type': {'required': False},
+            'attendance': {'required': False},
+        }
+
+    def validate(self, data):
+        start_datetime = data.get('start_datetime', getattr(self.instance, 'start_datetime', None))
+        end_datetime = data.get('end_datetime', getattr(self.instance, 'end_datetime', None))
+
+        if start_datetime and end_datetime:
+            if start_datetime >= end_datetime:
+                raise serializers.ValidationError("End datetime must be after start datetime")
+
+        return data

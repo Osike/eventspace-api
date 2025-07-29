@@ -1,6 +1,6 @@
 from django.shortcuts import render, get_object_or_404
 from django.utils import timezone
-from rest_framework.generics import CreateAPIView, ListAPIView
+from rest_framework.generics import CreateAPIView, ListAPIView, UpdateAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -15,7 +15,7 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes
 
 from .models import Event, Booking
-from .serializers import EventSerializer, EventListSerializer, BookingSerializer
+from .serializers import EventSerializer, EventListSerializer, BookingSerializer, EventUpdateSerializer
 from .tasks import update_space_on_approval
 from apps.spaces.models import Space
 
@@ -399,3 +399,46 @@ class BookingViewSet(viewsets.ModelViewSet):
             serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class UpdateEventView(UpdateAPIView):
+    """
+    Update an event's details.
+    """
+    queryset = Event.objects.all()
+    serializer_class = EventUpdateSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'pk'
+
+    def get_object(self):
+        obj = super().get_object()
+        if obj.user != self.request.user and not self.request.user.is_staff:
+            self.permission_denied(self.request, message="You do not have permission to edit this event.")
+        if obj.status not in ['pending', 'confirmed']:
+            raise serializers.ValidationError(f"You can only edit events with status 'pending' or 'confirmed'. This event is '{obj.status}'.")
+        return obj
+
+    @swagger_auto_schema(
+        operation_summary="Update an event",
+        operation_description="Update the details of a specific event by its ID.",
+        responses={
+            200: EventUpdateSerializer,
+            400: "Bad Request",
+            403: "Permission Denied",
+            404: "Not Found"
+        }
+    )
+    def put(self, request, *args, **kwargs):
+        return self.update(request, *args, **kwargs)
+
+    @swagger_auto_schema(
+        operation_summary="Partially update an event",
+        operation_description="Partially update the details of a specific event by its ID.",
+        responses={
+            200: EventUpdateSerializer,
+            400: "Bad Request",
+            403: "Permission Denied",
+            404: "Not Found"
+        }
+    )
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
